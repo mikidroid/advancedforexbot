@@ -17,7 +17,7 @@ import os
 # CONFIG
 # ===========================
 CONFIG = {
-    "MODE": "proactive",               # safe / proactive / aggressive
+    "MODE": "safe",               # safe / proactive / aggressive
     "SYMBOL": "EURUSD",
     "PRIMARY_TF": mt5.TIMEFRAME_M5,
     "HTF": mt5.TIMEFRAME_M15,
@@ -39,9 +39,9 @@ CONFIG = {
     "TELEGRAM_ENABLED": False,
     "TELEGRAM_TOKEN": "",
     "TELEGRAM_CHAT_ID": "",
-    "SL_DOLLAR": 15,
+    "SL_DOLLAR": 10,
     "USE_DOLLAR_SL": True,
-    "TP_DOLLAR": 10,  # desired profit per trade in USD
+    "TP_DOLLAR": 20,  # desired profit per trade in USD
     "USE_DOLLAR_TP": True,  # set True to activate dollar-based TP
 
     # Self-learning / retrain config:
@@ -60,6 +60,11 @@ CONFIG = {
 # DAILY LIMITS
 # ===========================
 DAILY_LIMITS_FILE = "daily_trade_limits.csv"
+
+if not os.path.exists(DAILY_LIMITS_FILE):
+    with open(DAILY_LIMITS_FILE, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["date", "trades_count", "profit", "loss"])
 
 def load_daily_limits():
     if os.path.exists(DAILY_LIMITS_FILE):
