@@ -512,14 +512,26 @@ def place_trade(signal, df_raw, rf_model=None, deep_model=None):
         tp = entry_price + pip_dist * 0.0001 if signal == "buy" else entry_price - pip_dist * 0.0001
     else:
         tp = entry_price + CONFIG["TP_ATR_MULT"] * atr if signal == "buy" else entry_price - CONFIG["TP_ATR_MULT"] * atr
-
+    
+    # Compute SL using dollar amount (converted to price distance) or ATR-based SL
     if CONFIG["USE_DOLLAR_SL"]:
-        pip_value = 10
-        lot = 0.1
-        pip_dist = CONFIG["SL_DOLLAR"] / (pip_value * lot)
-        sl = entry_price - pip_dist * 0.0001 if signal == "buy" else entry_price + pip_dist * 0.0001
+        try:
+            sym_info = mt5.symbol_info(symbol)
+            contract = float(getattr(sym_info, "trade_contract_size", 100000) or 100000)
+            # avoid division by zero
+            if entry_price == 0 or contract == 0:
+                raise Exception("Invalid entry_price/contract for dollar SL calculation.")
+            # per_lot_loss = abs(entry_price - sl) * contract / entry_price
+            # => abs(entry_price - sl) = SL_DOLLAR * entry_price / contract
+            price_dist = float(CONFIG["SL_DOLLAR"]) * entry_price / contract
+            sl = entry_price - price_dist if signal == "buy" else entry_price + price_dist
+        except Exception as e:
+            print("Dollar SL calc error:", e)
+            # fallback to ATR-based SL if anything goes wrong
+            sl = entry_price - CONFIG["SL_ATR_MULT"] * atr if signal == "buy" else entry_price + CONFIG["SL_ATR_MULT"] * atr
     else:
         sl = entry_price - CONFIG["SL_ATR_MULT"] * atr if signal == "buy" else entry_price + CONFIG["SL_ATR_MULT"] * atr
+
 
     # compute lot (approx)
     info = mt5.account_info()
