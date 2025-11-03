@@ -53,11 +53,64 @@ CONFIG = {
     "RETRAIN_ON_START": True,   # check for retrain on startup
 }
 
+#Add a logic that stops trading after $100 win and $50 loss in a day
+#It should also stop after 10 trades in a day
+#It should save required data to csv file daily_trade_limits.csv and load from it on startup
+# ===========================
+# DAILY LIMITS
+# ===========================
+DAILY_LIMITS_FILE = "daily_trade_limits.csv"
+
+def load_daily_limits():
+    if os.path.exists(DAILY_LIMITS_FILE):
+        df = pd.read_csv(DAILY_LIMITS_FILE)
+        if not df.empty:
+            return {
+                "date": df.iloc[0]["date"],
+                "total_profit": df.iloc[0]["total_profit"],
+                "trade_count": df.iloc[0]["trade_count"]
+            }
+    return {"date": dt.datetime.utcnow().date().isoformat(), "total_profit": 0.0, "trade_count": 0}
+
+def save_daily_limits(limits):
+    df = pd.DataFrame([limits])
+    df.to_csv(DAILY_LIMITS_FILE, index=False)
+
+daily_limits = load_daily_limits()
+
+def check_daily_limits():
+    """Return False if trading should stop for the day."""
+    global daily_limits
+    today = dt.datetime.utcnow().date().isoformat()
+    if daily_limits["date"] != today:
+        # new day, reset counters
+        daily_limits = {"date": today, "total_profit": 0.0, "trade_count": 0}
+        save_daily_limits(daily_limits)
+
+    if daily_limits["total_profit"] >= 100.0:
+        print("🚫 Daily profit target reached ($100). Trading paused for today.")
+        return False
+    if daily_limits["total_profit"] <= -50.0:
+        print("🚫 Daily loss limit reached (-$50). Trading paused for today.")
+        return False
+    if daily_limits["trade_count"] >= 10:
+        print("🚫 Daily trade limit reached (10 trades). Trading paused for today.")
+        return False
+    return True
+
+def update_daily_limits(profit):
+    """Update daily profit and trade count."""
+    global daily_limits
+    daily_limits["total_profit"] += profit
+    daily_limits["trade_count"] += 1
+    save_daily_limits(daily_limits)
+
+
 # Mode tuning
 def apply_mode_settings():
     m = CONFIG["MODE"].lower()
     if m == "safe":
-        CONFIG.update({"MODEL_PROB_THRESHOLD": 0.45, "RISK_PER_TRADE": 0.005, "SL_ATR_MULT": 1.6, "TP_ATR_MULT": 2.8})
+        CONFIG.update({"MODEL_PROB_THRESHOLD": 0.35, "RISK_PER_TRADE": 0.005, "SL_ATR_MULT": 1.6, "TP_ATR_MULT": 2.8})
     elif m == "proactive":
         CONFIG.update({"MODEL_PROB_THRESHOLD": 0.25, "RISK_PER_TRADE": 0.01, "SL_ATR_MULT": 1.3, "TP_ATR_MULT": 2.1})
     elif m == "aggressive":
@@ -344,6 +397,7 @@ def append_trade_log(order_id, symbol, signal, entry_time_utc, entry_price, lot,
         df_row.to_csv(CONFIG["TRADE_LOG_FILE"], mode="a", header=False, index=False)
 
 def update_trade_log_with_close(order_id, close_time_utc, profit):
+
     """Mark trade as closed in trade_log.csv and append labeled sample to training_samples.csv"""
     if not os.path.exists(CONFIG["TRADE_LOG_FILE"]):
         return
@@ -372,6 +426,11 @@ def update_trade_log_with_close(order_id, close_time_utc, profit):
     # append
     file_exists = os.path.exists(CONFIG["TRAINING_SAMPLES_FILE"])
     pd.DataFrame([training_row]).to_csv(CONFIG["TRAINING_SAMPLES_FILE"], mode="a", header=not file_exists, index=False)
+    # Update daily profit/loss totals
+    try:
+        update_daily_limits(profit)
+    except Exception as e:
+        print("Daily limit update failed:", e)
 
 def scan_closed_deals_and_label():
     """Check history for closed deals that match logged open trades. If found, label them."""
@@ -492,6 +551,7 @@ def retrain_if_enough():
 # Place trade (safe)
 # ===========================
 def place_trade(signal, df_raw, rf_model=None, deep_model=None):
+
     symbol = CONFIG["SYMBOL"]
     tick = mt5.symbol_info_tick(symbol)
     if tick is None:
@@ -647,6 +707,11 @@ def trade_loop():
 
         signal, prob = get_signal(rf_model, deep_model, df)
         if signal:
+            # === Check daily limits ===
+            if not check_daily_limits():
+                print("Daily limit hit. Bot will sleep until next day.")
+                time.sleep(300)
+                continue
             # skip if position exists
             if has_open_position(CONFIG["SYMBOL"]):
                 print("Existing open position, skipping.")
