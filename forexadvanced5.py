@@ -9,6 +9,7 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model, Sequential
 from tensorflow.keras.layers import Conv1D, Dense, Flatten, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
+import csv
 import math
 import json
 import os
@@ -753,3 +754,4 @@ if __name__ == "__main__":
     print("Starting bot in MODE:", CONFIG["MODE"], "| DRY_RUN:", CONFIG["DRY_RUN"])
     print("Use DEMO first. WARNING: Live trading risks capital.")
     trade_loop()
+
