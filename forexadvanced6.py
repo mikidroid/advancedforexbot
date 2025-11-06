@@ -63,7 +63,7 @@ CONFIG = {
 }
 
 # FinancialModelingPrep API key (Option A)
-NEWS_API_KEY = ""  # Put your key here; if blank, news check will be skipped
+NEWS_API_KEY = "y7XfDhqpKMIyJz9vK92ZupFJQsDGr3Ge"  # Put your key here; if blank, news check will be skipped
 NEWS_CHECK_INTERVAL = 300  # cache news checks for 5 minutes
 
 # ===========================
