@@ -368,6 +368,20 @@ def current_position_direction(symbol):
 # ===========================
 # TRADE LOG / LABEL
 # ===========================
+def safe_read_csv(path):
+    # Auto-create or repair empty file
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        print(f"⚠️ {path} missing or empty — creating fresh file.")
+        with open(path, "w") as f:
+            f.write("timestamp,open,high,low,close,volume,label,feature1,feature2,feature3\n")
+    try:
+        return pd.read_csv(path)
+    except Exception as e:
+        print(f"⚠️ Error reading {path}: {e} — resetting file.")
+        with open(path, "w") as f:
+            f.write("timestamp,open,high,low,close,volume,label,feature1,feature2,feature3\n")
+        return pd.read_csv(path)
+        
 def append_trade_log(order_id, symbol, signal, entry_time_utc, entry_price, lot, sl, tp, features_row):
     base_cols = [
         "order_id", "symbol", "signal", "entry_time_utc",
@@ -474,7 +488,7 @@ def retrain_if_enough():
     path = CONFIG["TRAINING_SAMPLES_FILE"]
     if not os.path.exists(path):
         return
-    df = pd.read_csv(path)
+    df = safe_read_csv(path)
     if df.empty:
         return
     feat_cols = get_rf_expected_features(None)
